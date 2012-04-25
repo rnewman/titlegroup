@@ -1,4 +1,4 @@
-"use strict";
+const EXPORTED_SYMBOLS = ["TitleGroup"];
 
 const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 
@@ -16,12 +16,12 @@ let TitleGroup = {
   },
 
   getGroupName: function getGroupName(window) {
-    let groups = sessionStore.getWindowValue(window, "tabview-groups");
+    let groups = this.sessionStore.getWindowValue(window, "tabview-groups");
     if (!groups) {
       return;
     }
     let active = JSON.parse(groups).activeGroupId;
-    let groupData = sessionStore.getWindowValue(window, "tabview-group");
+    let groupData = this.sessionStore.getWindowValue(window, "tabview-group");
     return JSON.parse(groupData)[active].title;
   },
 
@@ -34,24 +34,47 @@ let TitleGroup = {
   },
 
   setTitle: function setTitle(mainWindow, title) {
-    this.getTabBrowser(mainWindow).ownerDocument.title = title;
+    return this.getTabBrowser(mainWindow).ownerDocument.title = title;
   },
 
   getTabTitle: function getTabTitle(mainWindow) {
     return this.getTabBrowser(mainWindow).mCurrentBrowser.contentTitle;
   },
 
-  updateTitle: function updateTitle(mainWindow) {
-    this.setTitle(mainWindow, getGroupName(mainWindow) + " : " + getTabTitle(mainWindow));
+  computeTitle: function computeTitle(mainWindow) {
+    let groupName = this.getGroupName(mainWindow);
+    if (!groupName.length) {
+      return;
+    }
+    let title = groupName + " : " + this.getTabTitle(mainWindow);
+    return title;
   },
 
+  updateTitle: function updateTitle(mainWindow, evt) {
+    dump("Updating title on " + (evt ? evt.type : "null") + "\n");
+    return this.setTitle(mainWindow, this.computeTitle(mainWindow));
+  },
+
+  /**
+   * Returns an unloader function.
+   */
   installWindowHandler: function installWindowHandler(window) {
     let mainWindow = this.getMainWindow(window);
-    let handler = this.updateTitle.bind(this, mainWindow);
-    let tabs = this.getTabBrowser(mainWindow);
-    tabs.addEventListener("DOMTitleChanged", handler, false);
 
-    // This doesn't work.
-    // tabs.addEventListener("pageshow", handler, false);
+    let gb   = mainWindow.gBrowser;
+    let tc   = gb.tabContainer;
+    let tabs = this.getTabBrowser(mainWindow);
+
+    let handler = TitleGroup.updateTitle.bind(this, mainWindow);
+
+    tabs.addEventListener("DOMTitleChanged", handler, false);
+    tc.addEventListener("TabSelect", handler, false);
+    gb.addEventListener("pageshow", handler, false);
+
+    return function unloadWindowHandler() {
+      tabs.removeEventListener("DOMTitleChanged", handler);
+      tc.removeEventListener("TabSelect", handler);
+      gb.removeEventListener("pageshow", handler);
+    };
   }
-}
+};

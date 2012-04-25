@@ -11,9 +11,7 @@ function startup(data, reason) {
   Cu.import("resource://titlegroup/titlegroup.jsm");
 
   PullStarter.watchWindows("navigator:browser", function (window) {
-    TitleGroup.installWindowHandler(window);
-    PullStarter.registerUnloader(function () {
-      // TODO
-    }, window);
+    let unloader = TitleGroup.installWindowHandler(window);
+    PullStarter.registerUnloader(unloader, window);
   });
 }
